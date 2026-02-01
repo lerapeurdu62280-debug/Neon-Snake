@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Snake - Arcade</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        body { background-color: #050505; color: #fff; font-family: 'Press Start 2P', cursive; touch-action: none; }
+        canvas { box-shadow: 0 0 20px rgba(0, 255, 0, 0.2); border: 2px solid #333; }
+        .neon-text { text-shadow: 0 0 10px #0f0; }
+        .btn { background: #1a1a1a; border: 1px solid #333; active:bg-green-900; touch-action: manipulation; }
+    </style>
+</head>
+<body class="h-screen flex flex-col items-center justify-center overflow-hidden">
+
+    <!-- Score Board -->
+    <div class="w-full max-w-md flex justify-between px-4 mb-4 text-sm text-green-400">
+        <div>SCORE: <span id="score">0</span></div>
+        <div>BEST: <span id="high">0</span></div>
+    </div>
+
+    <!-- Game Canvas -->
+    <canvas id="game" width="400" height="400" class="bg-black rounded-lg mb-6"></canvas>
+
+    <!-- Mobile Controls -->
+    <div class="grid grid-cols-3 gap-2 w-48 md:hidden">
+        <div></div>
+        <button class="btn h-14 rounded text-2xl text-green-500" onclick="changeDir('UP')">▲</button>
+        <div></div>
+        <button class="btn h-14 rounded text-2xl text-green-500" onclick="changeDir('LEFT')">◀</button>
+        <button class="btn h-14 rounded text-2xl text-red-500" onclick="resetGame()">↻</button>
+        <button class="btn h-14 rounded text-2xl text-green-500" onclick="changeDir('RIGHT')">▶</button>
+        <div></div>
+        <button class="btn h-14 rounded text-2xl text-green-500" onclick="changeDir('DOWN')">▼</button>
+        <div></div>
+    </div>
+
+    <div class="hidden md:block text-xs text-gray-500 mt-4">
+        UTILISEZ LES FLÈCHES POUR JOUER • ESPACE POUR REJOUER
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        
+        // Config
+        const gridSize = 20;
+        const tileCount = canvas.width / gridSize;
+        
+        // Game State
+        let score = 0;
+        let highScore = localStorage.getItem('snake_hiscore') || 0;
+        document.getElementById('high').innerText = highScore;
+
+        let velocity = { x: 0, y: 0 };
+        let snake = [{ x: 10, y: 10 }];
+        let apple = { x: 15, y: 15 };
+        let gameInterval;
+        let speed = 100; // ms
+        let isGameOver = false;
+
+        // Start
+        document.addEventListener('keydown', keyPush);
+        resetGame();
+
+        function gameLoop() {
+            if(isGameOver) return;
+
+            // Move Snake
+            const head = { x: snake[0].x + velocity.x, y: snake[0].y + velocity.y };
+
+            // Wall Collision (Loop around)
+            if (head.x < 0) head.x = tileCount - 1;
+            if (head.x >= tileCount) head.x = 0;
+            if (head.y < 0) head.y = tileCount - 1;
+            if (head.y >= tileCount) head.y = 0;
+
+            // Self Collision
+            for (let part of snake) {
+                if (part.x === head.x && part.y === head.y && snake.length > 2) {
+                    gameOver();
+                    return;
+                }
+            }
+
+            snake.unshift(head);
+
+            // Eat Apple
+            if (head.x === apple.x && head.y === apple.y) {
+                score += 10;
+                document.getElementById('score').innerText = score;
+                // Speed up slightly
+                if(speed > 50) speed -= 2; 
+                spawnApple();
+            } else {
+                snake.pop();
+            }
+
+            // Draw
+            draw();
+            
+            setTimeout(gameLoop, speed);
+        }
+
+        function draw() {
+            // Background
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Snake
+            snake.forEach((part, i) => {
+                ctx.fillStyle = i === 0 ? '#00ff00' : '#00cc00'; // Head is brighter
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#00ff00';
+                ctx.fillRect(part.x * gridSize, part.y * gridSize, gridSize - 2, gridSize - 2);
+                ctx.shadowBlur = 0;
+            });
+
+            // Apple
+            ctx.fillStyle = '#ff0055';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#ff0055';
+            ctx.fillRect(apple.x * gridSize, apple.y * gridSize, gridSize - 2, gridSize - 2);
+            ctx.shadowBlur = 0;
+
+            if(isGameOver) {
+                ctx.fillStyle = 'white';
+                ctx.font = '30px "Press Start 2P"';
+                ctx.textAlign = 'center';
+                ctx.fillText("GAME OVER", canvas.width/2, canvas.height/2);
+                ctx.font = '12px "Press Start 2P"';
+                ctx.fillText("Press Space/Reset", canvas.width/2, canvas.height/2 + 30);
+            }
+        }
+
+        function spawnApple() {
+            apple.x = Math.floor(Math.random() * tileCount);
+            apple.y = Math.floor(Math.random() * tileCount);
+            // Don't spawn on snake
+            for (let part of snake) {
+                if (part.x === apple.x && part.y === apple.y) spawnApple();
+            }
+        }
+
+        function changeDir(dir) {
+            if(isGameOver) return;
+            switch(dir) {
+                case 'UP': if(velocity.y !== 1) velocity = { x: 0, y: -1 }; break;
+                case 'DOWN': if(velocity.y !== -1) velocity = { x: 0, y: 1 }; break;
+                case 'LEFT': if(velocity.x !== 1) velocity = { x: -1, y: 0 }; break;
+                case 'RIGHT': if(velocity.x !== -1) velocity = { x: 1, y: 0 }; break;
+            }
+        }
+
+        function keyPush(evt) {
+            if(isGameOver && evt.keyCode === 32) {
+                resetGame();
+                return;
+            }
+            switch(evt.keyCode) {
+                case 37: changeDir('LEFT'); break;
+                case 38: changeDir('UP'); break;
+                case 39: changeDir('RIGHT'); break;
+                case 40: changeDir('DOWN'); break;
+                case 32: if(isGameOver) resetGame(); break; // Space
+            }
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            if(score > highScore) {
+                highScore = score;
+                localStorage.setItem('snake_hiscore', highScore);
+                document.getElementById('high').innerText = highScore;
+            }
+            draw();
+        }
+
+        function resetGame() {
+            snake = [{ x: 10, y: 10 }];
+            velocity = { x: 0, y: 0 }; // Pause at start
+            score = 0;
+            speed = 100;
+            isGameOver = false;
+            document.getElementById('score').innerText = score;
+            spawnApple();
+            draw();
+            gameLoop();
+        }
+    </script>
+</body>
+</html>
